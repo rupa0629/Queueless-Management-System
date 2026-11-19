@@ -1,0 +1,165 @@
+{
+  "entities": {
+    "CitizenProfile": {
+      "title": "CitizenProfile",
+      "description": "Private citizen profile and accessibility/language preferences stored strictly under the owner's UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the citizen.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Citizen display name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified email address.",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "phone": {
+          "type": "string",
+          "description": "Optional contact phone number.",
+          "maxLength": 24
+        },
+        "preferredLang": {
+          "type": "string",
+          "description": "Preferred UI language.",
+          "enum": ["en", "hi"]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last profile update."
+        }
+      },
+      "required": ["uid", "displayName", "email", "preferredLang", "updatedAt"]
+    },
+    "SavedTokenPass": {
+      "title": "SavedTokenPass",
+      "description": "Synced reference to a citizen's virtual queue token pass across devices.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tokenId": {
+          "type": "string",
+          "description": "Authoritative backend token UUID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tokenCode": {
+          "type": "string",
+          "description": "Display token code such as HOPD-104.",
+          "minLength": 3,
+          "maxLength": 24,
+          "pattern": "^[A-Z]+-[0-9]+$"
+        },
+        "serviceCode": {
+          "type": "string",
+          "description": "Service desk code.",
+          "enum": ["HOPD", "BANK", "PASS", "LIB"]
+        },
+        "pin": {
+          "type": "string",
+          "description": "4-digit counter verification PIN.",
+          "minLength": 4,
+          "maxLength": 4,
+          "pattern": "^[0-9]{4}$"
+        },
+        "status": {
+          "type": "string",
+          "description": "Latest synced token lifecycle state.",
+          "enum": [
+            "WAITING",
+            "CALLED",
+            "IN_SERVICE",
+            "DEFERRED_30M",
+            "COMPLETED",
+            "GRACE_EXPIRED",
+            "CANCELLED_NO_ANSWER",
+            "CANCELLED_BY_USER"
+          ]
+        },
+        "bookedForName": {
+          "type": "string",
+          "description": "Visitor or assisted-mode recipient name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "tokenId",
+        "tokenCode",
+        "serviceCode",
+        "pin",
+        "status",
+        "bookedForName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminMarker": {
+      "title": "AdminMarker",
+      "description": "Trusted supervisor marker managed out-of-band.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 160
+        }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/private/profile": {
+      "schema": {
+        "$ref": "#/entities/CitizenProfile"
+      },
+      "description": "Private PII profile for a signed-in citizen."
+    },
+    "/users/{userId}/tokens/{tokenId}": {
+      "schema": {
+        "$ref": "#/entities/SavedTokenPass"
+      },
+      "description": "Personal virtual queue token passes synced for a signed-in citizen."
+    },
+    "/admins/{userId}": {
+      "schema": {
+        "$ref": "#/entities/AdminMarker"
+      },
+      "description": "Read-only admin registry documents."
+    }
+  }
+}

@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'rupasritupakula570@gmail.com'
+      );
+    }
+
+    function isValidCitizenProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'preferredLang', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'email', 'phone', 'preferredLang', 'updatedAt']) &&
+        data.uid is string && data.uid == userId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 24)) &&
+        data.preferredLang in ['en', 'hi'] &&
+        data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    function isValidSavedToken(data, userId, tokenId) {
+      return data.keys().hasAll([
+          'uid', 'tokenId', 'tokenCode', 'serviceCode', 'pin', 'status', 'bookedForName', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'tokenId', 'tokenCode', 'serviceCode', 'pin', 'status', 'bookedForName', 'createdAt', 'updatedAt'
+        ]) &&
+        data.uid is string && data.uid == userId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.tokenId is string && data.tokenId == tokenId && data.tokenId.size() >= 1 && data.tokenId.size() <= 128 &&
+        data.tokenCode is string && data.tokenCode.size() >= 3 && data.tokenCode.size() <= 24 &&
+        data.tokenCode.matches('^[A-Z]+-[0-9]+$') &&
+        data.serviceCode in ['HOPD', 'BANK', 'PASS', 'LIB'] &&
+        data.pin is string && data.pin.size() == 4 && data.pin.matches('^[0-9]{4}$') &&
+        data.status in [
+          'WAITING',
+          'CALLED',
+          'IN_SERVICE',
+          'DEFERRED_30M',
+          'COMPLETED',
+          'GRACE_EXPIRED',
+          'CANCELLED_NO_ANSWER',
+          'CANCELLED_BY_USER'
+        ] &&
+        data.bookedForName is string && data.bookedForName.size() >= 1 && data.bookedForName.size() <= 100 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    function isTerminalTokenStatus(status) {
+      return status in ['COMPLETED', 'GRACE_EXPIRED', 'CANCELLED_NO_ANSWER', 'CANCELLED_BY_USER'];
+    }
+
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/private/profile {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if false;
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidCitizenProfile(incoming(), userId);
+      allow update: if isValidId(userId) &&
+        isValidCitizenProfile(incoming(), userId) && (
+          isAdmin() || (
+            isOwner(userId) &&
+            incoming().uid == existing().uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'phone', 'preferredLang', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+    }
+
+    match /users/{userId}/tokens/{tokenId} {
+      allow get: if isValidId(userId) && isValidId(tokenId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && resource.data.uid == userId;
+      allow create: if isValidId(userId) &&
+        isValidId(tokenId) &&
+        isOwner(userId) &&
+        isValidSavedToken(incoming(), userId, tokenId) &&
+        incoming().createdAt == request.time;
+      allow update: if isValidId(userId) &&
+        isValidId(tokenId) &&
+        isValidSavedToken(incoming(), userId, tokenId) && (
+          isAdmin() || (
+            isOwner(userId) &&
+            !isTerminalTokenStatus(existing().status) &&
+            incoming().uid == existing().uid &&
+            incoming().tokenId == existing().tokenId &&
+            incoming().tokenCode == existing().tokenCode &&
+            incoming().serviceCode == existing().serviceCode &&
+            incoming().pin == existing().pin &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && isValidId(tokenId) && (isOwner(userId) || isAdmin());
+    }
+  }
+}

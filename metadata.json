@@ -1,0 +1,8 @@
+{
+  "name": "Queueless — Smart Waiting System",
+  "description": "Smart virtual queue and waiting-time management system for Hospital OPD, Bank Counter, Passport Office, and Library Desk with live token tracking and staff counter operations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
