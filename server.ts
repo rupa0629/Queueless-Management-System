@@ -1159,8 +1159,28 @@ async function bootstrap() {
     });
   }
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Queueless server listening on http://0.0.0.0:${PORT}`);
+  let activePort = PORT;
+  const server = app.listen(PORT, '0.0.0.0');
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE' && activePort < 65535) {
+      const previousPort = activePort;
+      activePort += 1;
+      console.warn(
+        `Port ${previousPort} is already in use; trying port ${activePort}.`
+      );
+      server.listen(activePort, '0.0.0.0');
+      return;
+    }
+
+    console.error(`Failed to listen on port ${activePort}:`, err);
+    stopWorker();
+    process.exit(1);
+  });
+  server.on('listening', () => {
+    const address = server.address();
+    const listeningPort =
+      address && typeof address === 'object' ? address.port : activePort;
+    console.log(`Queueless server listening on http://localhost:${listeningPort}`);
   });
 
   process.on('SIGTERM', () => {
