@@ -52,6 +52,12 @@ export function LiveTokenPass({
   const prevAlertKeyRef = useRef<string>('');
 
   useEffect(() => {
+    setConfirmCancel(false);
+    setActionBusy(null);
+    setError(null);
+  }, [pass.id]);
+
+  useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);

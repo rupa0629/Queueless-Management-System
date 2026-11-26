@@ -987,11 +987,13 @@ async function bootstrap() {
           } as const;
         }
         const targetIso = new Date(now + 30 * 60 * 1000).toISOString();
+        let wasOccupyingCounter = false;
         if (freedCounterId) {
           const ctr = db.counters.find((c) => c.id === freedCounterId);
           if (ctr && ctr.currentTokenId === tok.id) {
             ctr.currentTokenId = null;
             ctr.updatedAt = nowIso;
+            wasOccupyingCounter = true;
           }
         }
         tok.status = 'DEFERRED_30M';
@@ -1002,18 +1004,20 @@ async function bootstrap() {
         tok.graceExpiresAt = null;
         tok.updatedAt = nowIso;
 
-        if (freedCounterId) {
+        if (wasOccupyingCounter && freedCounterId) {
           const nextTok = promoteNextTokenToCounter(db, freedCounterId, nowIso);
           if (nextTok) {
             autoAdvancedToken = mapTokenForStaff(db, nextTok, s.role, s.assignedServiceCode);
           }
         }
       } else if (outcome === 'NO_ANSWER_CANCEL') {
+        let wasOccupyingCounter = false;
         if (freedCounterId) {
           const ctr = db.counters.find((c) => c.id === freedCounterId);
           if (ctr && ctr.currentTokenId === tok.id) {
             ctr.currentTokenId = null;
             ctr.updatedAt = nowIso;
+            wasOccupyingCounter = true;
           }
         }
         tok.status = 'CANCELLED_NO_ANSWER';
@@ -1032,8 +1036,8 @@ async function bootstrap() {
           createdAt: nowIso,
         });
 
-        // Auto-advance to the next waiting person on that counter
-        if (freedCounterId) {
+        // Auto-advance to the next waiting person only if this token was occupying the counter
+        if (wasOccupyingCounter && freedCounterId) {
           const nextTok = promoteNextTokenToCounter(db, freedCounterId, nowIso);
           if (nextTok) {
             autoAdvancedToken = mapTokenForStaff(db, nextTok, s.role, s.assignedServiceCode);

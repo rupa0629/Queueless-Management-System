@@ -158,11 +158,11 @@ export default function App() {
   }, [route, staffToken]);
 
 
-  const fetchServices = useCallback(async () => {
+  const fetchServices = useCallback(async (overrideTokenId?: string) => {
     try {
-      const currentPass = activePassRef.current;
-      const url = currentPass
-        ? `/api/services?tokenId=${encodeURIComponent(currentPass.id)}`
+      const requestedTokenId = overrideTokenId ?? activePassRef.current?.id;
+      const url = requestedTokenId
+        ? `/api/services?tokenId=${encodeURIComponent(requestedTokenId)}`
         : '/api/services';
       const res = await fetch(url);
       if (!res.ok) throw new Error('Service fetch failed');
@@ -171,7 +171,11 @@ export default function App() {
         activePass?: QueueTokenPass | null;
       };
       setServices(json.services);
-      if (json.activePass) {
+      if (
+        json.activePass &&
+        activePassRef.current &&
+        json.activePass.id === activePassRef.current.id
+      ) {
         setActivePass(json.activePass);
         void updateCloudTokenStatus(json.activePass.id, json.activePass.status);
       }
@@ -208,7 +212,7 @@ export default function App() {
         setLastSyncedAt(Date.now());
         setStaffRefreshSignal((n) => n + 1);
         if (activePassRef.current) {
-          void fetchServices();
+          void fetchServices(activePassRef.current.id);
         }
       };
       es.addEventListener('queue:updated', handleUnifiedUpdate);
@@ -250,19 +254,21 @@ export default function App() {
   }, [fetchServices]);
 
   const handleTokenJoined = (pass: QueueTokenPass) => {
+    activePassRef.current = pass;
     setJoiningService(null);
     setActivePass(pass);
     setPassMinimized(false);
     setLastSyncedAt(Date.now());
     void syncTokenToCloud(pass);
-    void fetchServices();
+    void fetchServices(pass.id);
   };
 
   const handlePassUpdated = (nextPass: QueueTokenPass) => {
+    activePassRef.current = nextPass;
     setActivePass(nextPass);
     setLastSyncedAt(Date.now());
     void updateCloudTokenStatus(nextPass.id, nextPass.status);
-    void fetchServices();
+    void fetchServices(nextPass.id);
   };
 
   const handleStaffLoginSuccess = (token: string, staff: StaffUserPublic) => {
@@ -457,6 +463,7 @@ export default function App() {
             {/* Active Live Token Pass (Immediately visible after joining) */}
             {activePass && !passMinimized && (
               <LiveTokenPass
+                key={activePass.id}
                 pass={activePass}
                 lang={lang}
                 lastSyncedAt={lastSyncedAt}
@@ -553,6 +560,7 @@ export default function App() {
             lastSyncedAt={lastSyncedAt}
             isOffline={isOffline}
             onSelectPass={(pass) => {
+              activePassRef.current = pass;
               setActivePass(pass);
               setPassMinimized(false);
             }}

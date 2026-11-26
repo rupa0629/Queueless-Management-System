@@ -136,6 +136,7 @@ export function TrackTokenView({
       {/* Active Pass */}
       {activePass && (
         <LiveTokenPass
+          key={activePass.id}
           pass={activePass}
           lang={lang}
           lastSyncedAt={lastSyncedAt}
